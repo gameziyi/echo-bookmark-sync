@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>书签同步工具</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 书签同步工具</h1>
+            <p>Chrome 与 ChatGPT Atlas 书签同步</p>
+        </header>
+
+        <main>
+            <!-- 浏览器路径配置 -->
+            <section class="config-section">
+                <h2>🔧 浏览器配置</h2>
+                
+                <div class="path-config">
+                    <label for="chrome-path">Chrome 书签路径:</label>
+                    <div class="path-input-group">
+                        <input type="text" id="chrome-path" readonly>
+                        <button id="detect-chrome" class="btn btn-secondary">自动检测</button>
+                        <button id="browse-chrome" class="btn btn-secondary">浏览</button>
+                    </div>
+                </div>
+
+                <div class="path-config">
+                    <label for="atlas-path">ChatGPT Atlas 书签路径:</label>
+                    <div class="path-input-group">
+                        <input type="text" id="atlas-path" readonly>
+                        <button id="detect-atlas" class="btn btn-secondary">自动检测</button>
+                        <button id="browse-atlas" class="btn btn-secondary">浏览</button>
+                        <button id="help-atlas" class="btn btn-info">帮助</button>
+                    </div>
+                    <div id="atlas-help" class="help-section" style="display: none;">
+                        <h4>📍 如何找到 ChatGPT Atlas 书签文件？</h4>
+                        <div class="help-content">
+                            <p><strong>方法 1: 查看应用设置</strong></p>
+                            <ul>
+                                <li>打开 ChatGPT Atlas 应用</li>
+                                <li>查看设置或偏好设置</li>
+                                <li>寻找"数据存储位置"或"用户数据"选项</li>
+                            </ul>
+                            
+                            <p><strong>方法 2: 搜索书签文件</strong></p>
+                            <ul>
+                                <li>在 Finder (Mac) 或文件资源管理器 (Windows) 中搜索</li>
+                                <li>搜索关键词: "bookmarks.json" 或 "ChatGPT Atlas"</li>
+                                <li>查看最近修改的 JSON 文件</li>
+                            </ul>
+                            
+                            <p><strong>方法 3: 检查常见位置</strong></p>
+                            <div id="atlas-suggestions"></div>
+                            
+                            <p><strong>💡 提示:</strong> 如果找不到书签文件，可以先在 Atlas 中添加一个测试书签，然后搜索最近创建的 JSON 文件。</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 同步设置 -->
+            <section class="sync-section">
+                <h2>⚙️ 同步设置</h2>
+                
+                <div class="sync-options">
+                    <label>同步方向:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="sync-direction" value="bidirectional" checked>
+                            双向同步 (推荐)
+                        </label>
+                        <label>
+                            <input type="radio" name="sync-direction" value="chrome-to-atlas">
+                            Chrome → Atlas
+                        </label>
+                        <label>
+                            <input type="radio" name="sync-direction" value="atlas-to-chrome">
+                            Atlas → Chrome
+                        </label>
+                    </div>
+                </div>
+
+                <div class="sync-controls">
+                    <button id="start-sync" class="btn btn-primary">🚀 启动自动同步</button>
+                    <button id="stop-sync" class="btn btn-danger" disabled>⏹️ 停止同步</button>
+                    <button id="manual-sync" class="btn btn-secondary">🔄 手动同步一次</button>
+                </div>
+            </section>
+
+            <!-- 状态显示 -->
+            <section class="status-section">
+                <h2>📊 同步状态</h2>
+                
+                <div class="status-indicator">
+                    <span id="sync-status" class="status-badge status-stopped">已停止</span>
+                    <span id="last-sync-time">从未同步</span>
+                </div>
+
+                <div class="log-container">
+                    <h3>同步日志</h3>
+                    <div id="sync-log" class="log-area"></div>
+                    <button id="clear-log" class="btn btn-small">清空日志</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
