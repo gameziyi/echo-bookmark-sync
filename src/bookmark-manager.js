@@ -197,56 +197,168 @@ class BookmarkManager {
     }
   }
 
-  // 合并书签
-  mergeBookmarks(source, target) {
-    // 简化的合并逻辑，基于时间戳
+  // 智能合并书签 - 支持删除同步和时间戳优先
+  async mergeBookmarks(source, target, sourceModTime, targetModTime) {
     const merged = { ...target };
+    
+    // 确定哪个文件更新（用于冲突解决）
+    const sourceIsNewer = sourceModTime > targetModTime;
     
     if (source.roots && target.roots) {
       // 合并书签栏
       if (source.roots.bookmark_bar && target.roots.bookmark_bar) {
-        merged.roots.bookmark_bar.children = this.mergeBookmarkNodes(
+        const mergeResult = this.intelligentMergeNodes(
           source.roots.bookmark_bar.children || [],
-          target.roots.bookmark_bar.children || []
+          target.roots.bookmark_bar.children || [],
+          sourceIsNewer,
+          'bookmark_bar'
         );
+        merged.roots.bookmark_bar.children = mergeResult.nodes;
       }
       
       // 合并其他书签
       if (source.roots.other && target.roots.other) {
-        merged.roots.other.children = this.mergeBookmarkNodes(
+        const mergeResult = this.intelligentMergeNodes(
           source.roots.other.children || [],
-          target.roots.other.children || []
+          target.roots.other.children || [],
+          sourceIsNewer,
+          'other'
         );
+        merged.roots.other.children = mergeResult.nodes;
       }
     }
 
     return merged;
   }
 
-  // 合并书签节点
-  mergeBookmarkNodes(sourceNodes, targetNodes) {
-    const merged = [...targetNodes];
-    const targetUrls = new Set(targetNodes.filter(n => n.url).map(n => n.url));
+  // 智能合并书签节点 - 处理新增、删除、冲突
+  intelligentMergeNodes(sourceNodes, targetNodes, sourceIsNewer, location) {
+    const result = {
+      nodes: [],
+      operations: {
+        added: [],
+        removed: [],
+        conflicts: []
+      }
+    };
 
-    for (const sourceNode of sourceNodes) {
-      if (sourceNode.url && !targetUrls.has(sourceNode.url)) {
-        // 新书签，直接添加
-        merged.push(sourceNode);
-      } else if (sourceNode.children) {
-        // 文件夹，递归合并
-        const targetFolder = merged.find(n => n.name === sourceNode.name && n.children);
-        if (targetFolder) {
-          targetFolder.children = this.mergeBookmarkNodes(
-            sourceNode.children,
-            targetFolder.children
+    // 创建URL到书签的映射
+    const sourceMap = new Map();
+    const targetMap = new Map();
+    
+    // 处理源节点
+    sourceNodes.forEach(node => {
+      if (node.url) {
+        sourceMap.set(node.url, node);
+      } else if (node.children) {
+        // 文件夹按名称映射
+        sourceMap.set(`folder:${node.name}`, node);
+      }
+    });
+    
+    // 处理目标节点
+    targetNodes.forEach(node => {
+      if (node.url) {
+        targetMap.set(node.url, node);
+      } else if (node.children) {
+        targetMap.set(`folder:${node.name}`, node);
+      }
+    });
+
+    // 合并逻辑
+    const allKeys = new Set([...sourceMap.keys(), ...targetMap.keys()]);
+    
+    for (const key of allKeys) {
+      const sourceNode = sourceMap.get(key);
+      const targetNode = targetMap.get(key);
+      
+      if (sourceNode && targetNode) {
+        // 两边都存在
+        if (key.startsWith('folder:')) {
+          // 文件夹递归合并
+          const folderResult = this.intelligentMergeNodes(
+            sourceNode.children || [],
+            targetNode.children || [],
+            sourceIsNewer,
+            `${location}/${sourceNode.name}`
           );
+          
+          result.nodes.push({
+            ...targetNode,
+            children: folderResult.nodes
+          });
+          
+          // 合并操作记录
+          result.operations.added.push(...folderResult.operations.added);
+          result.operations.removed.push(...folderResult.operations.removed);
+          result.operations.conflicts.push(...folderResult.operations.conflicts);
         } else {
-          merged.push(sourceNode);
+          // 书签存在于两边，检查是否有冲突
+          if (this.bookmarksEqual(sourceNode, targetNode)) {
+            result.nodes.push(targetNode);
+          } else {
+            // 有冲突，基于时间戳决定
+            const chosenNode = sourceIsNewer ? sourceNode : targetNode;
+            result.nodes.push(chosenNode);
+            
+            result.operations.conflicts.push({
+              type: 'modified',
+              location,
+              chosen: sourceIsNewer ? 'source' : 'target',
+              bookmark: chosenNode
+            });
+          }
+        }
+      } else if (sourceNode && !targetNode) {
+        // 只在源中存在
+        if (sourceIsNewer) {
+          // 源更新，这是新增的书签
+          result.nodes.push(sourceNode);
+          result.operations.added.push({
+            type: 'added',
+            location,
+            bookmark: sourceNode
+          });
+        } else {
+          // 目标更新，这个书签被删除了，不添加到结果中
+          result.operations.removed.push({
+            type: 'removed',
+            location,
+            bookmark: sourceNode,
+            reason: 'deleted_in_target'
+          });
+        }
+      } else if (!sourceNode && targetNode) {
+        // 只在目标中存在
+        if (!sourceIsNewer) {
+          // 目标更新，这是新增的书签
+          result.nodes.push(targetNode);
+          result.operations.added.push({
+            type: 'added',
+            location,
+            bookmark: targetNode
+          });
+        } else {
+          // 源更新，这个书签被删除了，不添加到结果中
+          result.operations.removed.push({
+            type: 'removed',
+            location,
+            bookmark: targetNode,
+            reason: 'deleted_in_source'
+          });
         }
       }
     }
 
-    return merged;
+    return result;
+  }
+
+  // 检查两个书签是否相等
+  bookmarksEqual(bookmark1, bookmark2) {
+    if (bookmark1.url !== bookmark2.url) return false;
+    if (bookmark1.name !== bookmark2.name) return false;
+    if (bookmark1.date_added !== bookmark2.date_added) return false;
+    return true;
   }
 
   // 分析书签统计信息
@@ -354,7 +466,17 @@ class BookmarkManager {
       .slice(0, count);
   }
 
-  // 同步书签
+  // 获取文件修改时间
+  async getFileModTime(filePath) {
+    try {
+      const stats = await fs.stat(filePath);
+      return stats.mtime.getTime();
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  // 同步书签 - 支持删除同步和时间戳优先
   async syncBookmarks(config) {
     const { chromePath, atlasPath, syncDirection = 'bidirectional' } = config;
     
@@ -364,6 +486,10 @@ class BookmarkManager {
 
     const chromeBookmarks = await this.readBookmarks(chromePath);
     const atlasBookmarks = await this.readBookmarks(atlasPath);
+
+    // 获取文件修改时间
+    const chromeModTime = await this.getFileModTime(chromePath);
+    const atlasModTime = await this.getFileModTime(atlasPath);
 
     // 分析同步前的差异
     const comparison = this.compareBookmarks(chromeBookmarks, atlasBookmarks);
@@ -384,7 +510,14 @@ class BookmarkManager {
       syncedItems: {
         addedToChrome: [],
         addedToAtlas: [],
+        removedFromChrome: [],
+        removedFromAtlas: [],
         totalSynced: 0
+      },
+      fileModTimes: {
+        chrome: chromeModTime,
+        atlas: atlasModTime,
+        chromeIsNewer: chromeModTime > atlasModTime
       }
     };
 
@@ -405,26 +538,42 @@ class BookmarkManager {
         
       case 'bidirectional':
       default:
-        // 双向同步，合并书签
-        const mergedBookmarks = this.mergeBookmarks(chromeBookmarks, atlasBookmarks);
+        // 智能双向同步，支持删除和时间戳优先
+        const mergedBookmarks = await this.mergeBookmarks(
+          chromeBookmarks, 
+          atlasBookmarks, 
+          chromeModTime, 
+          atlasModTime
+        );
         
-        // 基于差异分析来判断是否需要更新，而不是JSON字符串比较
-        const needsChromeUpdate = comparison.differences.onlyInAtlas.length > 0;
-        const needsAtlasUpdate = comparison.differences.onlyInChrome.length > 0;
+        // 分析实际的变更操作
+        const chromeComparison = this.compareBookmarks(chromeBookmarks, mergedBookmarks);
+        const atlasComparison = this.compareBookmarks(atlasBookmarks, mergedBookmarks);
+        
+        const needsChromeUpdate = chromeComparison.differences.needsSync;
+        const needsAtlasUpdate = atlasComparison.differences.needsSync;
         
         if (needsChromeUpdate) {
           await this.writeBookmarks(chromePath, mergedBookmarks);
           result.chromeUpdated = true;
-          result.syncedItems.addedToChrome = comparison.differences.onlyInAtlas;
+          result.syncedItems.addedToChrome = chromeComparison.differences.onlyInAtlas;
+          result.syncedItems.removedFromChrome = chromeComparison.differences.onlyInChrome;
         }
         
         if (needsAtlasUpdate) {
           await this.writeBookmarks(atlasPath, mergedBookmarks);
           result.atlasUpdated = true;
-          result.syncedItems.addedToAtlas = comparison.differences.onlyInChrome;
+          result.syncedItems.addedToAtlas = atlasComparison.differences.onlyInAtlas;
+          result.syncedItems.removedFromAtlas = atlasComparison.differences.onlyInChrome;
         }
         
-        result.syncedItems.totalSynced = comparison.differences.onlyInChrome.length + comparison.differences.onlyInAtlas.length;
+        // 计算总的同步操作数
+        result.syncedItems.totalSynced = 
+          result.syncedItems.addedToChrome.length + 
+          result.syncedItems.addedToAtlas.length +
+          result.syncedItems.removedFromChrome.length +
+          result.syncedItems.removedFromAtlas.length;
+        
         break;
     }
 

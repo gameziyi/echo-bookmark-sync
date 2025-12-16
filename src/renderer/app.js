@@ -227,25 +227,55 @@ class BookmarkSyncApp {
                 if (chromeUpdated || atlasUpdated) {
                     this.addLog('📝 手动同步完成:', 'success');
                     
+                    // 显示时间戳信息
+                    if (result.result.fileModTimes) {
+                        const { chrome, atlas, chromeIsNewer } = result.result.fileModTimes;
+                        const chromeTime = new Date(chrome).toLocaleString('zh-CN');
+                        const atlasTime = new Date(atlas).toLocaleString('zh-CN');
+                        this.addLog(`⏰ 文件时间戳: Chrome(${chromeTime}) ${chromeIsNewer ? '🆕' : ''} | Atlas(${atlasTime}) ${!chromeIsNewer ? '🆕' : ''}`, 'info');
+                    }
+                    
                     // 显示具体同步的内容
                     if (syncedItems && syncedItems.totalSynced > 0) {
+                        // 新增操作
                         if (syncedItems.addedToChrome.length > 0) {
-                            this.addLog(`📥 向 Chrome 同步了 ${syncedItems.addedToChrome.length} 个书签:`, 'success');
+                            this.addLog(`📥 向 Chrome 添加了 ${syncedItems.addedToChrome.length} 个书签:`, 'success');
                             syncedItems.addedToChrome.slice(0, 2).forEach(bookmark => {
-                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                                this.addLog(`   ➕ ${bookmark.name} - ${bookmark.url}`, 'info');
                             });
                             if (syncedItems.addedToChrome.length > 2) {
-                                this.addLog(`   → ... 还有 ${syncedItems.addedToChrome.length - 2} 个书签`, 'info');
+                                this.addLog(`   ➕ ... 还有 ${syncedItems.addedToChrome.length - 2} 个书签`, 'info');
                             }
                         }
                         
                         if (syncedItems.addedToAtlas.length > 0) {
-                            this.addLog(`📥 向 Atlas 同步了 ${syncedItems.addedToAtlas.length} 个书签:`, 'success');
+                            this.addLog(`📥 向 Atlas 添加了 ${syncedItems.addedToAtlas.length} 个书签:`, 'success');
                             syncedItems.addedToAtlas.slice(0, 2).forEach(bookmark => {
-                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                                this.addLog(`   ➕ ${bookmark.name} - ${bookmark.url}`, 'info');
                             });
                             if (syncedItems.addedToAtlas.length > 2) {
-                                this.addLog(`   → ... 还有 ${syncedItems.addedToAtlas.length - 2} 个书签`, 'info');
+                                this.addLog(`   ➕ ... 还有 ${syncedItems.addedToAtlas.length - 2} 个书签`, 'info');
+                            }
+                        }
+                        
+                        // 删除操作
+                        if (syncedItems.removedFromChrome && syncedItems.removedFromChrome.length > 0) {
+                            this.addLog(`🗑️ 从 Chrome 删除了 ${syncedItems.removedFromChrome.length} 个书签:`, 'info');
+                            syncedItems.removedFromChrome.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   ➖ ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
+                            if (syncedItems.removedFromChrome.length > 2) {
+                                this.addLog(`   ➖ ... 还有 ${syncedItems.removedFromChrome.length - 2} 个书签`, 'info');
+                            }
+                        }
+                        
+                        if (syncedItems.removedFromAtlas && syncedItems.removedFromAtlas.length > 0) {
+                            this.addLog(`🗑️ 从 Atlas 删除了 ${syncedItems.removedFromAtlas.length} 个书签:`, 'info');
+                            syncedItems.removedFromAtlas.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   ➖ ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
+                            if (syncedItems.removedFromAtlas.length > 2) {
+                                this.addLog(`   ➖ ... 还有 ${syncedItems.removedFromAtlas.length - 2} 个书签`, 'info');
                             }
                         }
                     }
@@ -313,26 +343,48 @@ class BookmarkSyncApp {
                     const targetBrowser = triggerBrowser === 'Chrome' ? 'Atlas' : 'Chrome';
                     this.addLog(`📤 向 ${targetBrowser} 浏览器进行同步`, 'info');
                     
+                    // 显示时间戳信息
+                    if (result.fileModTimes) {
+                        const { chromeIsNewer } = result.fileModTimes;
+                        this.addLog(`⏰ 基于时间戳优先: ${chromeIsNewer ? 'Chrome 更新' : 'Atlas 更新'}`, 'info');
+                    }
+                    
                     // 3. 显示同步的具体内容
                     if (result.syncedItems && result.syncedItems.totalSynced > 0) {
+                        // 新增操作
                         if (triggerBrowser === 'Chrome' && result.syncedItems.addedToAtlas.length > 0) {
-                            this.addLog(`📥 向 Atlas 同步了 ${result.syncedItems.addedToAtlas.length} 个书签:`, 'success');
+                            this.addLog(`📥 向 Atlas 添加了 ${result.syncedItems.addedToAtlas.length} 个书签:`, 'success');
                             result.syncedItems.addedToAtlas.slice(0, 2).forEach(bookmark => {
-                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                                this.addLog(`   ➕ ${bookmark.name} - ${bookmark.url}`, 'info');
                             });
                             if (result.syncedItems.addedToAtlas.length > 2) {
-                                this.addLog(`   → ... 还有 ${result.syncedItems.addedToAtlas.length - 2} 个书签`, 'info');
+                                this.addLog(`   ➕ ... 还有 ${result.syncedItems.addedToAtlas.length - 2} 个书签`, 'info');
                             }
                         }
                         
                         if (triggerBrowser === 'Atlas' && result.syncedItems.addedToChrome.length > 0) {
-                            this.addLog(`📥 向 Chrome 同步了 ${result.syncedItems.addedToChrome.length} 个书签:`, 'success');
+                            this.addLog(`📥 向 Chrome 添加了 ${result.syncedItems.addedToChrome.length} 个书签:`, 'success');
                             result.syncedItems.addedToChrome.slice(0, 2).forEach(bookmark => {
-                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                                this.addLog(`   ➕ ${bookmark.name} - ${bookmark.url}`, 'info');
                             });
                             if (result.syncedItems.addedToChrome.length > 2) {
-                                this.addLog(`   → ... 还有 ${result.syncedItems.addedToChrome.length - 2} 个书签`, 'info');
+                                this.addLog(`   ➕ ... 还有 ${result.syncedItems.addedToChrome.length - 2} 个书签`, 'info');
                             }
+                        }
+                        
+                        // 删除操作
+                        if (triggerBrowser === 'Chrome' && result.syncedItems.removedFromAtlas && result.syncedItems.removedFromAtlas.length > 0) {
+                            this.addLog(`🗑️ 从 Atlas 删除了 ${result.syncedItems.removedFromAtlas.length} 个书签:`, 'info');
+                            result.syncedItems.removedFromAtlas.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   ➖ ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
+                        }
+                        
+                        if (triggerBrowser === 'Atlas' && result.syncedItems.removedFromChrome && result.syncedItems.removedFromChrome.length > 0) {
+                            this.addLog(`🗑️ 从 Chrome 删除了 ${result.syncedItems.removedFromChrome.length} 个书签:`, 'info');
+                            result.syncedItems.removedFromChrome.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   ➖ ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
                         }
                     }
                     
