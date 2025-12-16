@@ -98,9 +98,12 @@ class BookmarkSyncApp {
     // Atlas重启助手
     ipcMain.handle('restart-atlas', async () => {
       try {
+        console.log('🔄 收到Atlas重启请求');
         const result = await this.atlasRestartHelper.restartAtlas();
+        console.log('🔄 Atlas重启结果:', result);
         return result;
       } catch (error) {
+        console.error('❌ Atlas重启失败:', error.message);
         return { success: false, message: error.message };
       }
     });
@@ -128,14 +131,25 @@ class BookmarkSyncApp {
       if (await fs.pathExists(filePath)) {
         const watcher = chokidar.watch(filePath, {
           persistent: true,
-          ignoreInitial: true
+          ignoreInitial: true,
+          usePolling: true,  // 使用轮询模式，更可靠
+          interval: 2000,    // 每2秒检查一次
+          binaryInterval: 2000
         });
 
         watcher.on('change', async () => {
+          console.log(`📁 检测到 ${browser} 文件变化: ${filePath}`);
+          
           try {
+            // 等待一下确保文件写入完成
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             // 读取变更后的书签以获取最新内容
             const updatedBookmarks = await this.bookmarkManager.readBookmarks(filePath);
+            console.log(`📊 ${browser} 书签数量: ${this.bookmarkManager.analyzeBookmarks(updatedBookmarks).totalBookmarks}`);
+            
             const result = await this.bookmarkManager.syncBookmarks(config);
+            console.log(`🔄 同步结果: Chrome更新=${result.chromeUpdated}, Atlas更新=${result.atlasUpdated}, 总数=${result.syncedItems.totalSynced}`);
             
             this.mainWindow.webContents.send('sync-update', {
               type: 'success',
@@ -146,6 +160,7 @@ class BookmarkSyncApp {
               triggerPath: filePath
             });
           } catch (error) {
+            console.error(`❌ ${browser} 同步失败:`, error.message);
             this.mainWindow.webContents.send('sync-update', {
               type: 'error',
               message: error.message,
@@ -153,6 +168,14 @@ class BookmarkSyncApp {
               triggerBrowser: browser
             });
           }
+        });
+
+        watcher.on('error', (error) => {
+          console.error(`❌ ${browser} 文件监控错误:`, error.message);
+        });
+
+        watcher.on('ready', () => {
+          console.log(`✅ ${browser} 文件监控已启动: ${filePath}`);
         });
 
         this.watchers.push(watcher);
