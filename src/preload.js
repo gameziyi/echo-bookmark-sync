@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 获取 Atlas 路径建议
   getAtlasSuggestions: () => ipcRenderer.invoke('get-atlas-suggestions'),
   
+  // 分析书签状态
+  analyzeBookmarks: (config) => ipcRenderer.invoke('analyze-bookmarks', config),
+  
   // 监听同步更新
   onSyncUpdate: (callback) => {
     ipcRenderer.on('sync-update', (event, data) => callback(data));

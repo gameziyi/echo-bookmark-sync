@@ -79,14 +79,30 @@ class BookmarkSyncApp {
     ipcMain.handle('get-atlas-suggestions', async () => {
       return this.bookmarkManager.getAtlasPathSuggestions();
     });
+
+    // 分析书签状态
+    ipcMain.handle('analyze-bookmarks', async (event, config) => {
+      try {
+        const chromeBookmarks = await this.bookmarkManager.readBookmarks(config.chromePath);
+        const atlasBookmarks = await this.bookmarkManager.readBookmarks(config.atlasPath);
+        const comparison = this.bookmarkManager.compareBookmarks(chromeBookmarks, atlasBookmarks);
+        
+        return { success: true, data: comparison };
+      } catch (error) {
+        return { success: false, message: error.message };
+      }
+    });
   }
 
   async startWatching(config) {
     this.stopWatching();
 
-    const paths = [config.chromePath, config.atlasPath].filter(Boolean);
+    const pathsToWatch = [
+      { path: config.chromePath, browser: 'Chrome' },
+      { path: config.atlasPath, browser: 'Atlas' }
+    ].filter(item => item.path);
     
-    for (const filePath of paths) {
+    for (const { path: filePath, browser } of pathsToWatch) {
       if (await fs.pathExists(filePath)) {
         const watcher = chokidar.watch(filePath, {
           persistent: true,
@@ -95,18 +111,24 @@ class BookmarkSyncApp {
 
         watcher.on('change', async () => {
           try {
+            // 读取变更后的书签以获取最新内容
+            const updatedBookmarks = await this.bookmarkManager.readBookmarks(filePath);
             const result = await this.bookmarkManager.syncBookmarks(config);
+            
             this.mainWindow.webContents.send('sync-update', {
               type: 'success',
               message: '书签已同步',
               timestamp: new Date().toISOString(),
-              result
+              result,
+              triggerBrowser: browser,
+              triggerPath: filePath
             });
           } catch (error) {
             this.mainWindow.webContents.send('sync-update', {
               type: 'error',
               message: error.message,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              triggerBrowser: browser
             });
           }
         });

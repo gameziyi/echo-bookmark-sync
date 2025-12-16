@@ -249,6 +249,111 @@ class BookmarkManager {
     return merged;
   }
 
+  // 分析书签统计信息
+  analyzeBookmarks(bookmarks) {
+    const stats = {
+      totalBookmarks: 0,
+      totalFolders: 0,
+      bookmarkBarItems: 0,
+      otherBookmarksItems: 0,
+      urls: [],
+      folders: []
+    };
+
+    const analyzeNode = (node, path = '') => {
+      if (node.type === 'url') {
+        stats.totalBookmarks++;
+        stats.urls.push({
+          name: node.name,
+          url: node.url,
+          path: path
+        });
+      } else if (node.type === 'folder') {
+        stats.totalFolders++;
+        stats.folders.push({
+          name: node.name,
+          path: path,
+          childCount: node.children ? node.children.length : 0
+        });
+        
+        if (node.children) {
+          node.children.forEach(child => {
+            analyzeNode(child, path ? `${path}/${node.name}` : node.name);
+          });
+        }
+      }
+    };
+
+    if (bookmarks.roots.bookmark_bar && bookmarks.roots.bookmark_bar.children) {
+      bookmarks.roots.bookmark_bar.children.forEach(child => {
+        analyzeNode(child, '书签栏');
+        stats.bookmarkBarItems++;
+      });
+    }
+
+    if (bookmarks.roots.other && bookmarks.roots.other.children) {
+      bookmarks.roots.other.children.forEach(child => {
+        analyzeNode(child, '其他书签');
+        stats.otherBookmarksItems++;
+      });
+    }
+
+    return stats;
+  }
+
+  // 比较两个书签集合的差异
+  compareBookmarks(chromeBookmarks, atlasBookmarks) {
+    const chromeStats = this.analyzeBookmarks(chromeBookmarks);
+    const atlasStats = this.analyzeBookmarks(atlasBookmarks);
+    
+    const chromeUrls = new Set(chromeStats.urls.map(b => b.url));
+    const atlasUrls = new Set(atlasStats.urls.map(b => b.url));
+    
+    const onlyInChrome = chromeStats.urls.filter(b => !atlasUrls.has(b.url));
+    const onlyInAtlas = atlasStats.urls.filter(b => !chromeUrls.has(b.url));
+    const common = chromeStats.urls.filter(b => atlasUrls.has(b.url));
+    
+    return {
+      chromeStats,
+      atlasStats,
+      differences: {
+        onlyInChrome,
+        onlyInAtlas,
+        common,
+        needsSync: onlyInChrome.length > 0 || onlyInAtlas.length > 0
+      }
+    };
+  }
+
+  // 检测最新添加的书签
+  detectLatestBookmarks(bookmarks, count = 5) {
+    const allBookmarks = [];
+    
+    const extractBookmarks = (node) => {
+      if (node.type === 'url') {
+        allBookmarks.push({
+          name: node.name,
+          url: node.url,
+          dateAdded: parseInt(node.date_added) || 0
+        });
+      } else if (node.children) {
+        node.children.forEach(extractBookmarks);
+      }
+    };
+
+    if (bookmarks.roots.bookmark_bar && bookmarks.roots.bookmark_bar.children) {
+      bookmarks.roots.bookmark_bar.children.forEach(extractBookmarks);
+    }
+    if (bookmarks.roots.other && bookmarks.roots.other.children) {
+      bookmarks.roots.other.children.forEach(extractBookmarks);
+    }
+
+    // 按添加时间排序，返回最新的几个
+    return allBookmarks
+      .sort((a, b) => b.dateAdded - a.dateAdded)
+      .slice(0, count);
+  }
+
   // 同步书签
   async syncBookmarks(config) {
     const { chromePath, atlasPath, syncDirection = 'bidirectional' } = config;
@@ -260,21 +365,42 @@ class BookmarkManager {
     const chromeBookmarks = await this.readBookmarks(chromePath);
     const atlasBookmarks = await this.readBookmarks(atlasPath);
 
+    // 分析同步前的差异
+    const comparison = this.compareBookmarks(chromeBookmarks, atlasBookmarks);
+
+    // 检测最新书签
+    const chromeLatest = this.detectLatestBookmarks(chromeBookmarks, 3);
+    const atlasLatest = this.detectLatestBookmarks(atlasBookmarks, 3);
+
     let result = {
       chromeUpdated: false,
       atlasUpdated: false,
-      conflicts: []
+      conflicts: [],
+      beforeSync: comparison,
+      latestBookmarks: {
+        chrome: chromeLatest,
+        atlas: atlasLatest
+      },
+      syncedItems: {
+        addedToChrome: [],
+        addedToAtlas: [],
+        totalSynced: 0
+      }
     };
 
     switch (syncDirection) {
       case 'chrome-to-atlas':
         await this.writeBookmarks(atlasPath, chromeBookmarks);
         result.atlasUpdated = true;
+        result.syncedItems.addedToAtlas = comparison.differences.onlyInChrome;
+        result.syncedItems.totalSynced = comparison.differences.onlyInChrome.length;
         break;
         
       case 'atlas-to-chrome':
         await this.writeBookmarks(chromePath, atlasBookmarks);
         result.chromeUpdated = true;
+        result.syncedItems.addedToChrome = comparison.differences.onlyInAtlas;
+        result.syncedItems.totalSynced = comparison.differences.onlyInAtlas.length;
         break;
         
       case 'bidirectional':
@@ -282,19 +408,23 @@ class BookmarkManager {
         // 双向同步，合并书签
         const mergedBookmarks = this.mergeBookmarks(chromeBookmarks, atlasBookmarks);
         
-        // 检查是否有变化
-        const chromeChanged = JSON.stringify(chromeBookmarks) !== JSON.stringify(mergedBookmarks);
-        const atlasChanged = JSON.stringify(atlasBookmarks) !== JSON.stringify(mergedBookmarks);
+        // 基于差异分析来判断是否需要更新，而不是JSON字符串比较
+        const needsChromeUpdate = comparison.differences.onlyInAtlas.length > 0;
+        const needsAtlasUpdate = comparison.differences.onlyInChrome.length > 0;
         
-        if (chromeChanged) {
+        if (needsChromeUpdate) {
           await this.writeBookmarks(chromePath, mergedBookmarks);
           result.chromeUpdated = true;
+          result.syncedItems.addedToChrome = comparison.differences.onlyInAtlas;
         }
         
-        if (atlasChanged) {
+        if (needsAtlasUpdate) {
           await this.writeBookmarks(atlasPath, mergedBookmarks);
           result.atlasUpdated = true;
+          result.syncedItems.addedToAtlas = comparison.differences.onlyInChrome;
         }
+        
+        result.syncedItems.totalSynced = comparison.differences.onlyInChrome.length + comparison.differences.onlyInAtlas.length;
         break;
     }
 

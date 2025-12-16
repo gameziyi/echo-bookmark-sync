@@ -13,7 +13,7 @@ class BookmarkSyncApp {
     init() {
         this.bindEvents();
         this.loadConfig();
-        this.detectBrowserPaths();
+        this.performStartupCheck();
         this.setupSyncUpdateListener();
     }
 
@@ -80,28 +80,37 @@ class BookmarkSyncApp {
 
     async detectBrowserPaths() {
         try {
-            this.addLog('正在检测浏览器路径...', 'info');
             const paths = await window.electronAPI.getBrowserPaths();
+            let detectedCount = 0;
             
             if (paths.chrome) {
                 document.getElementById('chrome-path').value = paths.chrome;
                 this.config.chromePath = paths.chrome;
-                this.addLog(`检测到 Chrome 路径: ${paths.chrome}`, 'success');
-            } else {
-                this.addLog('未检测到 Chrome 书签文件', 'error');
+                detectedCount++;
             }
 
             if (paths.atlas) {
                 document.getElementById('atlas-path').value = paths.atlas;
                 this.config.atlasPath = paths.atlas;
-                this.addLog(`检测到 Atlas 路径: ${paths.atlas}`, 'success');
+                detectedCount++;
+            }
+
+            // 只记录检测结果摘要
+            if (detectedCount === 2) {
+                this.addLog('✅ Chrome 和 Atlas 路径检测成功', 'success');
+            } else if (detectedCount === 1) {
+                if (paths.chrome) {
+                    this.addLog('✅ Chrome 路径检测成功，Atlas 需手动配置', 'info');
+                } else {
+                    this.addLog('✅ Atlas 路径检测成功，Chrome 需手动配置', 'info');
+                }
             } else {
-                this.addLog('未检测到 ChatGPT Atlas 书签文件，点击"帮助"按钮查看查找指南', 'info');
+                this.addLog('⚠️ 未检测到浏览器路径，请手动配置', 'info');
             }
 
             this.saveConfig();
         } catch (error) {
-            this.addLog(`检测失败: ${error.message}`, 'error');
+            this.addLog(`❌ 路径检测失败: ${error.message}`, 'error');
         }
     }
 
@@ -143,16 +152,16 @@ class BookmarkSyncApp {
             if (result.success) {
                 this.isRunning = true;
                 this.updateSyncStatus('running', '同步已启动');
-                this.addLog('自动同步已启动', 'success');
+                this.addLog('🚀 自动同步已启动，正在监控文件变化...', 'success');
                 
                 // 更新按钮状态
                 document.getElementById('start-sync').disabled = true;
                 document.getElementById('stop-sync').disabled = false;
             } else {
-                this.addLog(`启动失败: ${result.message}`, 'error');
+                this.addLog(`❌ 启动失败: ${result.message}`, 'error');
             }
         } catch (error) {
-            this.addLog(`启动失败: ${error.message}`, 'error');
+            this.addLog(`❌ 启动失败: ${error.message}`, 'error');
         }
     }
 
@@ -162,14 +171,14 @@ class BookmarkSyncApp {
             if (result.success) {
                 this.isRunning = false;
                 this.updateSyncStatus('stopped', '同步已停止');
-                this.addLog('自动同步已停止', 'info');
+                this.addLog('⏹️ 自动同步已停止', 'info');
                 
                 // 更新按钮状态
                 document.getElementById('start-sync').disabled = false;
                 document.getElementById('stop-sync').disabled = true;
             }
         } catch (error) {
-            this.addLog(`停止失败: ${error.message}`, 'error');
+            this.addLog(`❌ 停止失败: ${error.message}`, 'error');
         }
     }
 
@@ -179,42 +188,84 @@ class BookmarkSyncApp {
         }
 
         try {
-            this.addLog('开始手动同步...', 'info');
             const result = await window.electronAPI.manualSync(this.config);
             
             if (result.success) {
-                const { chromeUpdated, atlasUpdated } = result.result;
-                let message = '手动同步完成';
+                const { chromeUpdated, atlasUpdated, beforeSync, syncedItems } = result.result;
                 
-                if (chromeUpdated && atlasUpdated) {
-                    message += ' - Chrome 和 Atlas 都已更新';
-                } else if (chromeUpdated) {
-                    message += ' - Chrome 已更新';
-                } else if (atlasUpdated) {
-                    message += ' - Atlas 已更新';
-                } else {
-                    message += ' - 无需更新';
+                // 显示同步前的差异分析
+                if (beforeSync && beforeSync.differences.needsSync) {
+                    this.addLog('🔍 手动同步 - 发现需要同步的内容:', 'info');
+                    
+                    if (beforeSync.differences.onlyInChrome.length > 0) {
+                        this.addLog(`📱 Chrome 独有书签 (${beforeSync.differences.onlyInChrome.length} 个):`, 'info');
+                        beforeSync.differences.onlyInChrome.slice(0, 2).forEach(bookmark => {
+                            this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                        });
+                        if (beforeSync.differences.onlyInChrome.length > 2) {
+                            this.addLog(`   → ... 还有 ${beforeSync.differences.onlyInChrome.length - 2} 个书签`, 'info');
+                        }
+                    }
+                    
+                    if (beforeSync.differences.onlyInAtlas.length > 0) {
+                        this.addLog(`🌐 Atlas 独有书签 (${beforeSync.differences.onlyInAtlas.length} 个):`, 'info');
+                        beforeSync.differences.onlyInAtlas.slice(0, 2).forEach(bookmark => {
+                            this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                        });
+                        if (beforeSync.differences.onlyInAtlas.length > 2) {
+                            this.addLog(`   → ... 还有 ${beforeSync.differences.onlyInAtlas.length - 2} 个书签`, 'info');
+                        }
+                    }
                 }
                 
-                this.addLog(message, 'success');
-                
-                // 添加重要提示
+                // 只记录有实际变更的操作
                 if (chromeUpdated || atlasUpdated) {
-                    this.addLog('💡 重要提示: 请重启相关浏览器以查看同步的书签', 'info');
-                    if (atlasUpdated) {
-                        this.addLog('   - 重启 ChatGPT Atlas 浏览器查看新书签', 'info');
+                    this.addLog('📝 手动同步完成:', 'success');
+                    
+                    // 显示具体同步的内容
+                    if (syncedItems && syncedItems.totalSynced > 0) {
+                        if (syncedItems.addedToChrome.length > 0) {
+                            this.addLog(`📥 向 Chrome 同步了 ${syncedItems.addedToChrome.length} 个书签:`, 'success');
+                            syncedItems.addedToChrome.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
+                            if (syncedItems.addedToChrome.length > 2) {
+                                this.addLog(`   → ... 还有 ${syncedItems.addedToChrome.length - 2} 个书签`, 'info');
+                            }
+                        }
+                        
+                        if (syncedItems.addedToAtlas.length > 0) {
+                            this.addLog(`📥 向 Atlas 同步了 ${syncedItems.addedToAtlas.length} 个书签:`, 'success');
+                            syncedItems.addedToAtlas.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
+                            if (syncedItems.addedToAtlas.length > 2) {
+                                this.addLog(`   → ... 还有 ${syncedItems.addedToAtlas.length - 2} 个书签`, 'info');
+                            }
+                        }
                     }
-                    if (chromeUpdated) {
-                        this.addLog('   - 重启 Chrome 浏览器查看新书签', 'info');
+                    
+                    // 明确指出需要重启的浏览器（被同步到的浏览器）
+                    if (chromeUpdated && atlasUpdated) {
+                        this.addLog('💡 请重启 Chrome 和 Atlas 浏览器查看同步结果', 'info');
+                    } else if (chromeUpdated) {
+                        // Chrome 被更新了，需要重启 Chrome
+                        this.addLog('💡 请重启 Chrome 浏览器查看同步结果', 'info');
+                    } else if (atlasUpdated) {
+                        // Atlas 被更新了，需要重启 Atlas
+                        this.addLog('💡 请重启 Atlas 浏览器查看同步结果', 'info');
                     }
+                    
+                    this.updateLastSyncTime();
+                } else {
+                    // 无变更时不记录日志，只更新时间戳
+                    this.updateLastSyncTime();
                 }
-                
-                this.updateLastSyncTime();
             } else {
-                this.addLog(`同步失败: ${result.message}`, 'error');
+                this.addLog(`❌ 同步失败: ${result.message}`, 'error');
             }
         } catch (error) {
-            this.addLog(`同步失败: ${error.message}`, 'error');
+            this.addLog(`❌ 同步失败: ${error.message}`, 'error');
         }
     }
 
@@ -234,13 +285,66 @@ class BookmarkSyncApp {
 
     setupSyncUpdateListener() {
         window.electronAPI.onSyncUpdate((data) => {
-            const { type, message, timestamp, result } = data;
+            const { type, message, timestamp, result, triggerBrowser } = data;
             
             if (type === 'success') {
-                this.addLog(message, 'success');
+                // 只记录有实际变更的自动同步
+                if (result && (result.chromeUpdated || result.atlasUpdated)) {
+                    // 1. 说明触发原因和检测到的更新
+                    this.addLog(`🔄 检测到 ${triggerBrowser} 浏览器书签更新`, 'success');
+                    
+                    // 显示最新的书签（可能是触发同步的书签）
+                    if (result.latestBookmarks) {
+                        const latestInTrigger = triggerBrowser === 'Chrome' ? 
+                            result.latestBookmarks.chrome : result.latestBookmarks.atlas;
+                        
+                        if (latestInTrigger && latestInTrigger.length > 0) {
+                            const latest = latestInTrigger[0]; // 显示最新的一个
+                            this.addLog(`   → 更新内容: ${latest.name} - ${latest.url}`, 'info');
+                        }
+                    }
+                    
+                    // 2. 说明同步方向
+                    const targetBrowser = triggerBrowser === 'Chrome' ? 'Atlas' : 'Chrome';
+                    this.addLog(`📤 向 ${targetBrowser} 浏览器进行同步`, 'info');
+                    
+                    // 3. 显示同步的具体内容
+                    if (result.syncedItems && result.syncedItems.totalSynced > 0) {
+                        if (triggerBrowser === 'Chrome' && result.syncedItems.addedToAtlas.length > 0) {
+                            this.addLog(`📥 向 Atlas 同步了 ${result.syncedItems.addedToAtlas.length} 个书签:`, 'success');
+                            result.syncedItems.addedToAtlas.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
+                            if (result.syncedItems.addedToAtlas.length > 2) {
+                                this.addLog(`   → ... 还有 ${result.syncedItems.addedToAtlas.length - 2} 个书签`, 'info');
+                            }
+                        }
+                        
+                        if (triggerBrowser === 'Atlas' && result.syncedItems.addedToChrome.length > 0) {
+                            this.addLog(`📥 向 Chrome 同步了 ${result.syncedItems.addedToChrome.length} 个书签:`, 'success');
+                            result.syncedItems.addedToChrome.slice(0, 2).forEach(bookmark => {
+                                this.addLog(`   → ${bookmark.name} - ${bookmark.url}`, 'info');
+                            });
+                            if (result.syncedItems.addedToChrome.length > 2) {
+                                this.addLog(`   → ... 还有 ${result.syncedItems.addedToChrome.length - 2} 个书签`, 'info');
+                            }
+                        }
+                    }
+                    
+                    // 4. 明确指出需要重启的浏览器（被同步到的浏览器）
+                    if (result.chromeUpdated && result.atlasUpdated) {
+                        this.addLog('💡 请重启 Chrome 和 Atlas 浏览器查看同步结果', 'info');
+                    } else if (triggerBrowser === 'Chrome' && result.atlasUpdated) {
+                        // Chrome 触发，Atlas 被更新，需要重启 Atlas
+                        this.addLog('💡 请重启 Atlas 浏览器查看同步结果', 'info');
+                    } else if (triggerBrowser === 'Atlas' && result.chromeUpdated) {
+                        // Atlas 触发，Chrome 被更新，需要重启 Chrome
+                        this.addLog('💡 请重启 Chrome 浏览器查看同步结果', 'info');
+                    }
+                }
                 this.updateLastSyncTime();
             } else if (type === 'error') {
-                this.addLog(message, 'error');
+                this.addLog(`❌ ${triggerBrowser} 浏览器自动同步错误: ${message}`, 'error');
                 this.updateSyncStatus('error', '同步出错');
             }
         });
@@ -289,9 +393,75 @@ class BookmarkSyncApp {
         }
     }
 
+    async performStartupCheck() {
+        this.addLog('🚀 书签同步工具启动中...', 'info');
+        
+        // 1. 检测浏览器路径
+        await this.detectBrowserPaths();
+        
+        // 2. 分析书签状态
+        if (this.config.chromePath && this.config.atlasPath) {
+            await this.analyzeBookmarkStatus();
+        } else {
+            this.addLog('⚠️ 需要配置浏览器路径才能分析书签状态', 'info');
+            if (!this.config.chromePath) {
+                this.addLog('   → Chrome 路径未配置，请点击"自动检测"或"浏览"', 'info');
+            }
+            if (!this.config.atlasPath) {
+                this.addLog('   → Atlas 路径未配置，请点击"自动检测"或"浏览"', 'info');
+            }
+        }
+    }
+
+    async analyzeBookmarkStatus() {
+        try {
+            this.addLog('📊 正在分析书签状态...', 'info');
+            
+            const result = await window.electronAPI.analyzeBookmarks({
+                chromePath: this.config.chromePath,
+                atlasPath: this.config.atlasPath
+            });
+            
+            if (result.success) {
+                const { chromeStats, atlasStats, differences } = result.data;
+                
+                // 显示Chrome书签统计
+                this.addLog(`📱 Chrome 书签统计:`, 'success');
+                this.addLog(`   → 总书签: ${chromeStats.totalBookmarks} 个`, 'info');
+                this.addLog(`   → 文件夹: ${chromeStats.totalFolders} 个`, 'info');
+                this.addLog(`   → 书签栏: ${chromeStats.bookmarkBarItems} 项`, 'info');
+                this.addLog(`   → 其他书签: ${chromeStats.otherBookmarksItems} 项`, 'info');
+                
+                // 显示Atlas书签统计
+                this.addLog(`🌐 Atlas 书签统计:`, 'success');
+                this.addLog(`   → 总书签: ${atlasStats.totalBookmarks} 个`, 'info');
+                this.addLog(`   → 文件夹: ${atlasStats.totalFolders} 个`, 'info');
+                this.addLog(`   → 书签栏: ${atlasStats.bookmarkBarItems} 项`, 'info');
+                this.addLog(`   → 其他书签: ${atlasStats.otherBookmarksItems} 项`, 'info');
+                
+                // 显示差异分析
+                if (differences.needsSync) {
+                    this.addLog(`🔍 发现书签差异:`, 'info');
+                    if (differences.onlyInChrome.length > 0) {
+                        this.addLog(`   → Chrome 独有: ${differences.onlyInChrome.length} 个书签`, 'info');
+                    }
+                    if (differences.onlyInAtlas.length > 0) {
+                        this.addLog(`   → Atlas 独有: ${differences.onlyInAtlas.length} 个书签`, 'info');
+                    }
+                    this.addLog(`   → 共同书签: ${differences.common.length} 个`, 'info');
+                    this.addLog('💡 建议执行同步以保持书签一致', 'info');
+                } else {
+                    this.addLog('✅ 两个浏览器的书签已同步', 'success');
+                }
+            }
+        } catch (error) {
+            this.addLog(`❌ 书签分析失败: ${error.message}`, 'error');
+        }
+    }
+
     clearLog() {
         document.getElementById('sync-log').innerHTML = '';
-        this.addLog('日志已清空', 'info');
+        // 清空日志后不需要记录日志信息
     }
 
     saveConfig() {
