@@ -11,7 +11,14 @@
     "build-win": "electron-builder --win",
     "pack": "electron-builder --dir"
   },
-  "keywords": ["bookmark", "sync", "chrome", "chatgpt", "atlas", "cross-platform"],
+  "keywords": [
+    "bookmark",
+    "sync",
+    "chrome",
+    "chatgpt",
+    "atlas",
+    "cross-platform"
+  ],
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
@@ -19,8 +26,8 @@
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "chokidar": "^3.5.3",
-    "fs-extra": "^11.2.0"
+    "chokidar": "^3.6.0",
+    "fs-extra": "^11.3.2"
   },
   "build": {
     "appId": "com.bookmarksync.app",

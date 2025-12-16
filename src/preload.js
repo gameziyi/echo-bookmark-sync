@@ -19,9 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 分析书签状态
   analyzeBookmarks: (config) => ipcRenderer.invoke('analyze-bookmarks', config),
   
-  // Atlas重启助手
-  restartAtlas: () => ipcRenderer.invoke('restart-atlas'),
-  checkAtlasStatus: () => ipcRenderer.invoke('check-atlas-status'),
+
   
   // 监听同步更新
   onSyncUpdate: (callback) => {

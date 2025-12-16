@@ -77,10 +77,7 @@ class BookmarkSyncApp {
             this.clearLog();
         });
 
-        // Atlas重启助手
-        document.getElementById('restart-atlas').addEventListener('click', () => {
-            this.restartAtlas();
-        });
+
     }
 
     async detectBrowserPaths() {
@@ -282,13 +279,13 @@ class BookmarkSyncApp {
                     
                     // 明确指出需要重启的浏览器（被同步到的浏览器）
                     if (chromeUpdated && atlasUpdated) {
-                        this.addLog('💡 请重启 Chrome 和 Atlas 浏览器查看同步结果', 'info');
+                        this.addLog('💡 请手动重启 Chrome 和 Atlas 浏览器查看同步结果', 'info');
                     } else if (chromeUpdated) {
                         // Chrome 被更新了，需要重启 Chrome
-                        this.addLog('💡 请重启 Chrome 浏览器查看同步结果', 'info');
+                        this.addLog('💡 请手动重启 Chrome 浏览器查看同步结果', 'info');
                     } else if (atlasUpdated) {
                         // Atlas 被更新了，需要重启 Atlas
-                        this.addLog('💡 请重启 Atlas 浏览器查看同步结果', 'info');
+                        this.addLog('💡 请手动重启 Atlas 浏览器查看同步结果', 'info');
                     }
                     
                     this.updateLastSyncTime();
@@ -390,13 +387,13 @@ class BookmarkSyncApp {
                     
                     // 4. 明确指出需要重启的浏览器（被同步到的浏览器）
                     if (result.chromeUpdated && result.atlasUpdated) {
-                        this.addLog('💡 请重启 Chrome 和 Atlas 浏览器查看同步结果', 'info');
+                        this.addLog('💡 请手动重启 Chrome 和 Atlas 浏览器查看同步结果', 'info');
                     } else if (triggerBrowser === 'Chrome' && result.atlasUpdated) {
                         // Chrome 触发，Atlas 被更新，需要重启 Atlas
-                        this.addLog('💡 请重启 Atlas 浏览器查看同步结果', 'info');
+                        this.addLog('💡 请手动重启 Atlas 浏览器查看同步结果', 'info');
                     } else if (triggerBrowser === 'Atlas' && result.chromeUpdated) {
                         // Atlas 触发，Chrome 被更新，需要重启 Chrome
-                        this.addLog('💡 请重启 Chrome 浏览器查看同步结果', 'info');
+                        this.addLog('💡 请手动重启 Chrome 浏览器查看同步结果', 'info');
                     }
                 }
                 this.updateLastSyncTime();
@@ -516,22 +513,7 @@ class BookmarkSyncApp {
         }
     }
 
-    async restartAtlas() {
-        try {
-            this.addLog('🔄 正在重启 Atlas 浏览器...', 'info');
-            
-            const result = await window.electronAPI.restartAtlas();
-            
-            if (result.success) {
-                this.addLog('✅ Atlas 浏览器重启成功！', 'success');
-                this.addLog('💡 请检查 Atlas 中的书签是否已更新', 'info');
-            } else {
-                this.addLog(`❌ Atlas 重启失败: ${result.message}`, 'error');
-            }
-        } catch (error) {
-            this.addLog(`❌ 重启失败: ${error.message}`, 'error');
-        }
-    }
+
 
     clearLog() {
         document.getElementById('sync-log').innerHTML = '';
