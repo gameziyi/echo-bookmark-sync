@@ -76,6 +76,11 @@ class BookmarkSyncApp {
         document.getElementById('clear-log').addEventListener('click', () => {
             this.clearLog();
         });
+
+        // Atlas重启助手
+        document.getElementById('restart-atlas').addEventListener('click', () => {
+            this.restartAtlas();
+        });
     }
 
     async detectBrowserPaths() {
@@ -456,6 +461,23 @@ class BookmarkSyncApp {
             }
         } catch (error) {
             this.addLog(`❌ 书签分析失败: ${error.message}`, 'error');
+        }
+    }
+
+    async restartAtlas() {
+        try {
+            this.addLog('🔄 正在重启 Atlas 浏览器...', 'info');
+            
+            const result = await window.electronAPI.restartAtlas();
+            
+            if (result.success) {
+                this.addLog('✅ Atlas 浏览器重启成功！', 'success');
+                this.addLog('💡 请检查 Atlas 中的书签是否已更新', 'info');
+            } else {
+                this.addLog(`❌ Atlas 重启失败: ${result.message}`, 'error');
+            }
+        } catch (error) {
+            this.addLog(`❌ 重启失败: ${error.message}`, 'error');
         }
     }
 

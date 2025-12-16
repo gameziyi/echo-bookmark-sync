@@ -3,11 +3,13 @@ const path = require('path');
 const fs = require('fs-extra');
 const chokidar = require('chokidar');
 const BookmarkManager = require('./bookmark-manager');
+const AtlasRestartHelper = require('../atlas-restart-helper');
 
 class BookmarkSyncApp {
   constructor() {
     this.mainWindow = null;
     this.bookmarkManager = new BookmarkManager();
+    this.atlasRestartHelper = new AtlasRestartHelper();
     this.watchers = [];
   }
 
@@ -88,6 +90,26 @@ class BookmarkSyncApp {
         const comparison = this.bookmarkManager.compareBookmarks(chromeBookmarks, atlasBookmarks);
         
         return { success: true, data: comparison };
+      } catch (error) {
+        return { success: false, message: error.message };
+      }
+    });
+
+    // Atlas重启助手
+    ipcMain.handle('restart-atlas', async () => {
+      try {
+        const result = await this.atlasRestartHelper.restartAtlas();
+        return result;
+      } catch (error) {
+        return { success: false, message: error.message };
+      }
+    });
+
+    // 检查Atlas运行状态
+    ipcMain.handle('check-atlas-status', async () => {
+      try {
+        const isRunning = await this.atlasRestartHelper.isAtlasRunning();
+        return { success: true, isRunning };
       } catch (error) {
         return { success: false, message: error.message };
       }
