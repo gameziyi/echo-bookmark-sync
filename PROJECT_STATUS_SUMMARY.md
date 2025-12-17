@@ -109,7 +109,6 @@ const watcher = chokidar.watch(filePath, {
 ## 🔮 未来发展规划
 
 ### 短期目标 (1-2周)
-- 🔄 **Chrome扩展集成**: 实现Chrome侧真正的实时同步
 - 🔄 **同步验证增强**: 重启后自动验证同步结果
 - 🔄 **Windows平台优化**: 完善Windows系统支持
 

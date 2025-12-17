@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>书签同步工具 - 界面预览</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* 预览模式下的额外修正 */
+        body {
+            cursor: default;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 书签同步工具</h1>
+            <p>Chrome 与 ChatGPT Atlas 书签同步</p>
+        </header>
+
+        <main>
+            <!-- 浏览器路径配置 -->
+            <section class="config-section">
+                <h2>🔧 浏览器配置</h2>
+
+                <div class="path-config">
+                    <label for="chrome-path">Chrome 书签路径:</label>
+                    <div class="path-input-group">
+                        <input type="text" id="chrome-path"
+                            value="/Users/DemoUser/Library/Application Support/Google/Chrome/Default/Bookmarks"
+                            readonly>
+                        <button id="detect-chrome" class="btn btn-secondary">自动检测</button>
+                        <button id="browse-chrome" class="btn btn-secondary">浏览</button>
+                    </div>
+                </div>
+
+                <div class="path-config">
+                    <label for="atlas-path">ChatGPT Atlas 书签路径:</label>
+                    <div class="path-input-group">
+                        <input type="text" id="atlas-path" placeholder="等待检测..." readonly>
+                        <button id="detect-atlas" class="btn btn-secondary">自动检测</button>
+                        <button id="browse-atlas" class="btn btn-secondary">浏览</button>
+                        <button id="help-atlas" class="btn btn-info">帮助</button>
+                    </div>
+                    <div id="atlas-help" class="help-section" style="display: none;">
+                        <h4>📍 如何找到 ChatGPT Atlas 书签文件？</h4>
+                        <div class="help-content">
+                            <!-- 帮助内容与原文件一致 -->
+                            <p><strong>方法 1: 查看应用设置</strong></p>
+                            <ul>
+                                <li>打开 ChatGPT Atlas 应用</li>
+                                <li>查看设置或偏好设置</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 同步设置 -->
+            <section class="sync-section">
+                <h2>⚙️ 同步设置</h2>
+
+                <div class="sync-options">
+                    <label>同步方向:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="sync-direction" value="bidirectional" checked>
+                            双向同步 (推荐)
+                        </label>
+                        <label>
+                            <input type="radio" name="sync-direction" value="chrome-to-atlas">
+                            Chrome → Atlas
+                        </label>
+                        <label>
+                            <input type="radio" name="sync-direction" value="atlas-to-chrome">
+                            Atlas → Chrome
+                        </label>
+                    </div>
+                </div>
+
+                <div class="sync-controls">
+                    <button id="start-sync" class="btn btn-primary">🚀 启动自动同步</button>
+                    <button id="stop-sync" class="btn btn-danger" disabled>⏹️ 停止同步</button>
+                    <button id="manual-sync" class="btn btn-secondary">🔄 手动同步一次</button>
+                </div>
+            </section>
+
+            <!-- 状态显示 -->
+            <section class="status-section">
+                <h2>📊 同步状态</h2>
+
+                <div class="status-indicator">
+                    <span id="sync-status" class="status-badge status-stopped">已停止</span>
+                    <span id="last-sync-time">从未同步</span>
+                </div>
+
+                <div class="log-container">
+                    <h3>同步日志</h3>
+                    <div id="sync-log" class="log-area">
+                        <div class="log-entry info"><span class="log-timestamp">[15:30:01]</span> 应用启动完成</div>
+                        <div class="log-entry success"><span class="log-timestamp">[15:30:02]</span> 成功检测到 Chrome 路径
+                        </div>
+                        <div class="log-entry info"><span class="log-timestamp">[15:30:02]</span> 等待配置 Atlas 路径...</div>
+                    </div>
+                    <button id="clear-log" class="btn btn-small">清空日志</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 模拟脚本，仅用于预览效果 -->
+    <script>
+        document.getElementById('detect-atlas').onclick = function () {
+            const btn = this;
+            const input = document.getElementById('atlas-path');
+            const log = document.getElementById('sync-log');
+
+            btn.disabled = true;
+            btn.textContent = '检测中...';
+
+            setTimeout(() => {
+                input.value = '/Users/Winnie.C/Library/Application Support/com.openai.atlas/browser-data/host/Default/Bookmarks';
+                btn.textContent = '自动检测';
+                btn.disabled = false;
+
+                log.innerHTML += '<div class="log-entry success"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> ✅ 检测到 Atlas 路径: /Users/Winnie.C/Library/Application Support/com.openai.atlas/browser-data/host/Default/Bookmarks</div>';
+
+                // Simulate updating the input field value too, as app.js does
+                document.getElementById('atlas-path').value = '/Users/Winnie.C/Library/Application Support/com.openai.atlas/browser-data/host/Default/Bookmarks';
+
+                log.innerHTML += '<div class="log-entry success"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> 🎉 两个浏览器的路径都已自动检测成功！</div>';
+
+                // Simulate auto-analyze
+                setTimeout(() => {
+                    log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> 📊 正在分析书签状态...</div>';
+
+                    setTimeout(() => {
+                        // Chrome Stats
+                        log.innerHTML += '<div class="log-entry success"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> 📱 Chrome 书签统计:</div>';
+                        log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span>    → 总书签: 1256 个</div>';
+                        log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span>    → 文件夹: 48 个</div>';
+
+                        // Atlas Stats
+                        log.innerHTML += '<div class="log-entry success"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> 🌐 Atlas 书签统计:</div>';
+                        log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span>    → 总书签: 1250 个</div>';
+                        log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span>    → 文件夹: 45 个</div>';
+
+                        // Differences
+                        log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> 🔍 发现书签差异:</div>';
+                        log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span>    → Chrome 独有: 6 个书签</div>';
+                        log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> 💡 建议执行同步以保持书签一致</div>';
+
+                        log.scrollTop = log.scrollHeight;
+                    }, 500);
+                }, 500);
+
+                log.scrollTop = log.scrollHeight;
+            }, 800);
+        };
+
+        document.getElementById('help-atlas').onclick = function () {
+            const el = document.getElementById('atlas-help');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        };
+
+        document.getElementById('start-sync').onclick = function () {
+            const btn = this;
+            const stopBtn = document.getElementById('stop-sync');
+            const status = document.getElementById('sync-status');
+            const log = document.getElementById('sync-log');
+
+            btn.disabled = true;
+            stopBtn.disabled = false;
+            status.textContent = '运行中';
+            status.className = 'status-badge status-running';
+
+            log.innerHTML += '<div class="log-entry info"><span class="log-timestamp">[' + new Date().toLocaleTimeString() + ']</span> 启动文件监控...</div>';
+            log.scrollTop = log.scrollHeight;
+        };
+
+        document.getElementById('stop-sync').onclick = function () {
+            const btn = this;
+            const startBtn = document.getElementById('start-sync');
+            const status = document.getElementById('sync-status');
+
+            btn.disabled = true;
+            startBtn.disabled = false;
+            status.textContent = '已停止';
+            status.className = 'status-badge status-stopped';
+        };
+    </script>
+</body>
+
+</html>

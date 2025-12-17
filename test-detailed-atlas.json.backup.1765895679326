@@ -1,0 +1,37 @@
+{
+  "checksum": "test-detailed",
+  "roots": {
+    "bookmark_bar": {
+      "children": [
+        {
+          "date_added": "13285932720000000",
+          "id": "1",
+          "name": "测试详细日志",
+          "type": "url",
+          "url": "https://test-detailed-logging.com/"
+        },
+        {
+          "date_added": "13285932730000000",
+          "id": "2",
+          "name": "另一个测试书签",
+          "type": "url",
+          "url": "https://another-test.com/"
+        }
+      ],
+      "date_added": "13285932720000000",
+      "date_modified": "0",
+      "id": "1",
+      "name": "书签栏",
+      "type": "folder"
+    },
+    "other": {
+      "children": [],
+      "date_added": "13285932720000000",
+      "date_modified": "0",
+      "id": "2",
+      "name": "其他书签",
+      "type": "folder"
+    }
+  },
+  "version": 1
+}

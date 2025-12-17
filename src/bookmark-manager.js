@@ -38,7 +38,7 @@ class BookmarkManager {
   // 获取 Chrome 书签文件路径
   getChromeBookmarkPath() {
     const homeDir = os.homedir();
-    
+
     switch (this.platform) {
       case 'darwin': // macOS
         return path.join(homeDir, 'Library/Application Support/Google/Chrome/Default/Bookmarks');
@@ -60,12 +60,22 @@ class BookmarkManager {
       case 'darwin':
         // 首先检查实际发现的 Atlas 路径模式
         const atlasBasePath = path.join(homeDir, 'Library/Application Support/com.openai.atlas/browser-data/host');
-        
+
         try {
           if (await fs.pathExists(atlasBasePath)) {
-            const userDirs = await fs.readdir(atlasBasePath);
+            let userDirs = await fs.readdir(atlasBasePath);
+
+            // Sort to prioritize user-* directories over Default
+            userDirs.sort((a, b) => {
+              const aIsUser = a.startsWith('user-');
+              const bIsUser = b.startsWith('user-');
+              if (aIsUser && !bIsUser) return -1;
+              if (!aIsUser && bIsUser) return 1;
+              return a.localeCompare(b);
+            });
+
             for (const userDir of userDirs) {
-              if (userDir.startsWith('user-')) {
+              if (userDir.startsWith('user-') || userDir === 'Default') {
                 const bookmarksPath = path.join(atlasBasePath, userDir, 'Bookmarks');
                 if (await fs.pathExists(bookmarksPath)) {
                   possiblePaths.push(bookmarksPath);
@@ -84,6 +94,8 @@ class BookmarkManager {
           path.join(homeDir, 'Library/Application Support/OpenAI/ChatGPT Atlas/bookmarks.json'),
           path.join(homeDir, 'Library/Application Support/ChatGPT Atlas/Default/Bookmarks'),
           path.join(homeDir, 'Library/Application Support/ChatGPT Atlas/User Data/Default/Bookmarks'),
+          // Verified working path
+          path.join(homeDir, 'Library/Application Support/com.openai.atlas/browser-data/host/Default/Bookmarks'),
           // 可能的其他位置
           path.join(homeDir, 'Library/Preferences/ChatGPT Atlas/bookmarks.json'),
           path.join(homeDir, 'Library/Caches/ChatGPT Atlas/bookmarks.json'),
@@ -92,11 +104,11 @@ class BookmarkManager {
           path.join(homeDir, 'Library/Application Support/com.openai.atlas/bookmarks.json')
         );
         break;
-        
+
       case 'win32':
         // Windows 路径检测逻辑
         const winAtlasBasePath = path.join(homeDir, 'AppData/Local/com.openai.atlas/browser-data/host');
-        
+
         try {
           if (await fs.pathExists(winAtlasBasePath)) {
             const userDirs = await fs.readdir(winAtlasBasePath);
@@ -200,10 +212,10 @@ class BookmarkManager {
   // 智能合并书签 - 支持删除同步和时间戳优先
   async mergeBookmarks(source, target, sourceModTime, targetModTime) {
     const merged = { ...target };
-    
+
     // 确定哪个文件更新（用于冲突解决）
     const sourceIsNewer = sourceModTime > targetModTime;
-    
+
     if (source.roots && target.roots) {
       // 合并书签栏
       if (source.roots.bookmark_bar && target.roots.bookmark_bar) {
@@ -215,7 +227,7 @@ class BookmarkManager {
         );
         merged.roots.bookmark_bar.children = mergeResult.nodes;
       }
-      
+
       // 合并其他书签
       if (source.roots.other && target.roots.other) {
         const mergeResult = this.intelligentMergeNodes(
@@ -245,7 +257,7 @@ class BookmarkManager {
     // 创建URL到书签的映射
     const sourceMap = new Map();
     const targetMap = new Map();
-    
+
     // 处理源节点
     sourceNodes.forEach(node => {
       if (node.url) {
@@ -255,7 +267,7 @@ class BookmarkManager {
         sourceMap.set(`folder:${node.name}`, node);
       }
     });
-    
+
     // 处理目标节点
     targetNodes.forEach(node => {
       if (node.url) {
@@ -267,11 +279,11 @@ class BookmarkManager {
 
     // 合并逻辑
     const allKeys = new Set([...sourceMap.keys(), ...targetMap.keys()]);
-    
+
     for (const key of allKeys) {
       const sourceNode = sourceMap.get(key);
       const targetNode = targetMap.get(key);
-      
+
       if (sourceNode && targetNode) {
         // 两边都存在
         if (key.startsWith('folder:')) {
@@ -282,12 +294,12 @@ class BookmarkManager {
             sourceIsNewer,
             `${location}/${sourceNode.name}`
           );
-          
+
           result.nodes.push({
             ...targetNode,
             children: folderResult.nodes
           });
-          
+
           // 合并操作记录
           result.operations.added.push(...folderResult.operations.added);
           result.operations.removed.push(...folderResult.operations.removed);
@@ -300,7 +312,7 @@ class BookmarkManager {
             // 有冲突，基于时间戳决定
             const chosenNode = sourceIsNewer ? sourceNode : targetNode;
             result.nodes.push(chosenNode);
-            
+
             result.operations.conflicts.push({
               type: 'modified',
               location,
@@ -387,7 +399,7 @@ class BookmarkManager {
           path: path,
           childCount: node.children ? node.children.length : 0
         });
-        
+
         if (node.children) {
           node.children.forEach(child => {
             analyzeNode(child, path ? `${path}/${node.name}` : node.name);
@@ -413,26 +425,50 @@ class BookmarkManager {
     return stats;
   }
 
-  // 比较两个书签集合的差异
+  // 比较两个书签集合的差异，包括修改检测
   compareBookmarks(chromeBookmarks, atlasBookmarks) {
     const chromeStats = this.analyzeBookmarks(chromeBookmarks);
     const atlasStats = this.analyzeBookmarks(atlasBookmarks);
-    
-    const chromeUrls = new Set(chromeStats.urls.map(b => b.url));
-    const atlasUrls = new Set(atlasStats.urls.map(b => b.url));
-    
+
+    const chromeUrls = new Map(chromeStats.urls.map(b => [b.url, b]));
+    const atlasUrls = new Map(atlasStats.urls.map(b => [b.url, b]));
+
     const onlyInChrome = chromeStats.urls.filter(b => !atlasUrls.has(b.url));
     const onlyInAtlas = atlasStats.urls.filter(b => !chromeUrls.has(b.url));
-    const common = chromeStats.urls.filter(b => atlasUrls.has(b.url));
-    
+
+    // Check for modifications in common bookmarks
+    const modifiedInChrome = []; // Present in both, but Chrome version is different (we'll assume newer check later, here just different)
+    const modifiedInAtlas = [];  // Not used in static compare essentially, but we can list diffs
+    const common = [];
+
+    chromeStats.urls.forEach(cBookmark => {
+      if (atlasUrls.has(cBookmark.url)) {
+        const aBookmark = atlasUrls.get(cBookmark.url);
+        common.push(cBookmark);
+
+        // If names differ, it's a modification
+        if (cBookmark.name !== aBookmark.name) {
+          // We just flag it as a content mismatch here. 
+          // Directionality depends on sync logic timestamps, but for "diff" purposes we treat them as conflicts/modifications.
+          modifiedInChrome.push({
+            url: cBookmark.url,
+            name: cBookmark.name,
+            oldName: aBookmark.name,
+            type: 'modified'
+          });
+        }
+      }
+    });
+
     return {
       chromeStats,
       atlasStats,
       differences: {
         onlyInChrome,
         onlyInAtlas,
+        modifiedInChrome,
         common,
-        needsSync: onlyInChrome.length > 0 || onlyInAtlas.length > 0
+        needsSync: onlyInChrome.length > 0 || onlyInAtlas.length > 0 || modifiedInChrome.length > 0
       }
     };
   }
@@ -440,7 +476,7 @@ class BookmarkManager {
   // 检测最新添加的书签
   detectLatestBookmarks(bookmarks, count = 5) {
     const allBookmarks = [];
-    
+
     const extractBookmarks = (node) => {
       if (node.type === 'url') {
         allBookmarks.push({
@@ -479,7 +515,7 @@ class BookmarkManager {
   // 同步书签 - 支持删除同步和时间戳优先
   async syncBookmarks(config) {
     const { chromePath, atlasPath, syncDirection = 'bidirectional' } = config;
-    
+
     if (!chromePath || !atlasPath) {
       throw new Error('请指定 Chrome 和 Atlas 的书签文件路径');
     }
@@ -528,52 +564,58 @@ class BookmarkManager {
         result.syncedItems.addedToAtlas = comparison.differences.onlyInChrome;
         result.syncedItems.totalSynced = comparison.differences.onlyInChrome.length;
         break;
-        
+
       case 'atlas-to-chrome':
         await this.writeBookmarks(chromePath, atlasBookmarks);
         result.chromeUpdated = true;
         result.syncedItems.addedToChrome = comparison.differences.onlyInAtlas;
         result.syncedItems.totalSynced = comparison.differences.onlyInAtlas.length;
         break;
-        
+
       case 'bidirectional':
       default:
         // 智能双向同步，支持删除和时间戳优先
         const mergedBookmarks = await this.mergeBookmarks(
-          chromeBookmarks, 
-          atlasBookmarks, 
-          chromeModTime, 
+          chromeBookmarks,
+          atlasBookmarks,
+          chromeModTime,
           atlasModTime
         );
-        
+
         // 分析实际的变更操作
         const chromeComparison = this.compareBookmarks(chromeBookmarks, mergedBookmarks);
         const atlasComparison = this.compareBookmarks(atlasBookmarks, mergedBookmarks);
-        
+
         const needsChromeUpdate = chromeComparison.differences.needsSync;
         const needsAtlasUpdate = atlasComparison.differences.needsSync;
-        
+
         if (needsChromeUpdate) {
           await this.writeBookmarks(chromePath, mergedBookmarks);
           result.chromeUpdated = true;
           result.syncedItems.addedToChrome = chromeComparison.differences.onlyInAtlas;
           result.syncedItems.removedFromChrome = chromeComparison.differences.onlyInChrome;
+          // Items that existed in Chrome (A) but differ from Merged (B) -> Modified in Chrome
+          result.syncedItems.modifiedInChrome = chromeComparison.differences.modifiedInChrome;
         }
-        
+
         if (needsAtlasUpdate) {
           await this.writeBookmarks(atlasPath, mergedBookmarks);
           result.atlasUpdated = true;
           result.syncedItems.addedToAtlas = atlasComparison.differences.onlyInAtlas;
           result.syncedItems.removedFromAtlas = atlasComparison.differences.onlyInChrome;
+          // Items that existed in Atlas (A) but differ from Merged (B) -> Modified in Atlas
+          result.syncedItems.modifiedInAtlas = atlasComparison.differences.modifiedInChrome; // Note: compareBookmarks(A, B) puts diffs in modifiedInChrome (A's name)
         }
-        
+
         // 计算总的同步操作数
-        result.syncedItems.totalSynced = 
-          result.syncedItems.addedToChrome.length + 
+        result.syncedItems.totalSynced =
+          result.syncedItems.addedToChrome.length +
           result.syncedItems.addedToAtlas.length +
           result.syncedItems.removedFromChrome.length +
-          result.syncedItems.removedFromAtlas.length;
-        
+          result.syncedItems.removedFromAtlas.length +
+          (result.syncedItems.modifiedInChrome ? result.syncedItems.modifiedInChrome.length : 0) +
+          (result.syncedItems.modifiedInAtlas ? result.syncedItems.modifiedInAtlas.length : 0);
+
         break;
     }
 

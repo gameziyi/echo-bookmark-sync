@@ -1,5 +1,5 @@
 {
-  "name": "bookmark-sync-tool",
+  "name": "echo-bookmark-sync",
   "version": "1.0.0",
   "description": "Cross-browser bookmark synchronization tool for Chrome and ChatGPT Atlas",
   "main": "src/main.js",
@@ -17,7 +17,8 @@
     "chrome",
     "chatgpt",
     "atlas",
-    "cross-platform"
+    "cross-platform",
+    "echo"
   ],
   "author": "Your Name",
   "license": "MIT",
@@ -30,8 +31,8 @@
     "fs-extra": "^11.3.2"
   },
   "build": {
-    "appId": "com.bookmarksync.app",
-    "productName": "Bookmark Sync Tool",
+    "appId": "com.echosync.app",
+    "productName": "Echo Bookmark Sync",
     "directories": {
       "output": "dist"
     },

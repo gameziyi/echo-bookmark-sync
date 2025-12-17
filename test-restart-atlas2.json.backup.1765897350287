@@ -1,0 +1,22 @@
+{
+  "checksum": "test-restart-2",
+  "roots": {
+    "bookmark_bar": {
+      "children": [],
+      "date_added": "13285932720000000",
+      "date_modified": "0",
+      "id": "1",
+      "name": "书签栏",
+      "type": "folder"
+    },
+    "other": {
+      "children": [],
+      "date_added": "13285932720000000",
+      "date_modified": "0",
+      "id": "2",
+      "name": "其他书签",
+      "type": "folder"
+    }
+  },
+  "version": 1
+}
