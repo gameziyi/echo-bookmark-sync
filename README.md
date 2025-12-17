@@ -38,7 +38,7 @@
 ### 1. 安装应用
 对于普通用户，无需配置环境，直接下载安装即可使用。
 
-1.  前往 [Releases](https://github.com/yourusername/echo-bookmark-sync/releases) 页面下载最新的 `.dmg` 安装包。
+1.  前往 [Releases](https://github.com/gameziyi/echo-bookmark-sync/releases) 页面下载最新的 `.dmg` 安装包。
 2.  双击 `.dmg` 文件，将 `Echo Bookmark Sync` 拖入 **Applications** 文件夹。
 3.  在启动台（Launchpad）中点击图标运行。
 
@@ -58,7 +58,7 @@
 
 1.  **克隆项目**
     ```bash
-    git clone https://github.com/yourusername/echo-bookmark-sync.git
+    git clone https://github.com/gameziyi/echo-bookmark-sync.git
     cd echo-bookmark-sync
     ```
 
@@ -130,7 +130,7 @@
 
 ### 🚀 Quick Start
 
-1.  Download the latest `.dmg` from [Releases](https://github.com/yourusername/echo-bookmark-sync/releases).
+1.  Download the latest `.dmg` from [Releases](https://github.com/gameziyi/echo-bookmark-sync/releases).
 2.  Install to your **Applications** folder.
 3.  Launch and click **"Start Auto Sync"**.
 
@@ -138,7 +138,7 @@
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/echo-bookmark-sync.git
+git clone https://github.com/gameziyi/echo-bookmark-sync.git
 
 # Install
 npm install
