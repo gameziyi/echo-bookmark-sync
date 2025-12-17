@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Cross-browser bookmark synchronization tool for Chrome and ChatGPT Atlas",
   "main": "src/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JinHanAI/echo-bookmark-sync.git"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
